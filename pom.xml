@@ -41,7 +41,7 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <maven-compiler-plugin</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
                     <source>17</source>
@@ -61,6 +61,6 @@
                     </execution>
                 </executions>
             </plugin>
-        </build>
+        </plugins>
     </build>
 </project>
