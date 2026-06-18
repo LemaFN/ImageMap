@@ -2,7 +2,6 @@ package com.imagecanvas.web;
 
 import com.imagecanvas.Main;
 import com.imagecanvas.image.ImageManager;
-import com.imagecanvas.image.ImageProcessor;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
@@ -64,7 +63,6 @@ public class WebServer {
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            // CORS-Header, damit der Browser auf deiner GitHub Page die Anfrage nicht blockiert
             exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
             exchange.getResponseHeaders().add("Access-Control-Allow-Methods", "POST, GET, OPTIONS");
             exchange.getResponseHeaders().add("Access-Control-Allow-Headers", "Content-Type");
@@ -76,7 +74,6 @@ public class WebServer {
 
             if (exchange.getRequestMethod().equalsIgnoreCase("POST")) {
                 try {
-                    // POST-Body einlesen. Da Base64-Daten extrem lang sind, lesen wir den Stream komplett aus
                     InputStreamReader isr = new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8);
                     BufferedReader br = new BufferedReader(isr);
                     StringBuilder sb = new StringBuilder();
@@ -86,53 +83,43 @@ public class WebServer {
                     }
                     
                     Map<String, String> params = parseQuery(sb.toString());
-                    String base64Data = params.get("image_data"); // Die nackten Bilddaten als Text
+                    String base64Data = params.get("image_data");
                     String name = params.get("name");
                     String colsStr = params.get("cols");
                     String rowsStr = params.get("rows");
 
                     if (base64Data == null || name == null || colsStr == null || rowsStr == null) {
-                        sendResponse(exchange, 400, "{\"error\":\"Fehlende Parameter. Bitte Datei, Name und Groesse angeben.\"}");
+                        sendResponse(exchange, 400, "{\"error\":\"Fehlende Parameter!\"}");
                         return;
                     }
 
                     int cols = Integer.parseInt(colsStr);
                     int rows = Integer.parseInt(rowsStr);
 
-                    plugin.getLogger().info("Empfange Datei-Upload fuer Bild: " + name + " (Custom Grid: " + cols + "x" + rows + ")");
-
-                    // Trick: Den Base64-Text wieder zurück in echte Bild-Bytes verwandeln
                     byte[] imageBytes = Base64.getDecoder().decode(base64Data);
                     ByteArrayInputStream bais = new ByteArrayInputStream(imageBytes);
                     BufferedImage originalImage = ImageIO.read(bais);
 
                     if (originalImage == null) {
-                        sendResponse(exchange, 400, "{\"error\":\"Ungueltiges Bildformat!\"}");
+                        sendResponse(exchange, 400, "{\"error\":\"Ungueltiges Bildformat.\"}");
                         return;
                     }
 
-                    // 1. Bild auf das eingegebene Custom-Raster skalieren
-                    BufferedImage resizedImage = ImageProcessor.resizeImage(originalImage, cols, rows);
-
-                    // 2. Minecraft-Karten generieren und IDs erhalten
+                    BufferedImage resizedImage = com.imagecanvas.image.ImageProcessor.resizeImage(originalImage, cols, rows);
                     List<Integer> generatedMapIds = imageManager.createMapGrid(name, resizedImage, cols, rows);
-
-                    // 3. Karten dauerhaft in der maps.yml sichern
                     plugin.getStorage().registerImage(name, generatedMapIds, cols, rows);
 
-                    // 4. IDs für die Webseite als Kette aufbereiten
                     StringBuilder idsBuilder = new StringBuilder();
                     for (int i = 0; i < generatedMapIds.size(); i++) {
                         idsBuilder.append(generatedMapIds.get(i));
                         if (i < generatedMapIds.size() - 1) idsBuilder.append(",");
                     }
 
-                    String response = "{\"status\":\"success\", \"message\":\"Bild erfolgreich verarbeitet und gespeichert!\", \"ids\":\"" + idsBuilder.toString() + "\", \"cols\":" + cols + ", \"rows\":" + rows + "}";
+                    String response = "{\"status\":\"success\", \"message\":\"Bild empfangen!\", \"ids\":\"" + idsBuilder.toString() + "\"}";
                     sendResponse(exchange, 200, response);
 
                 } catch (Exception e) {
-                    plugin.getLogger().severe("Fehler beim Verarbeiten des Datei-Uploads: " + e.getMessage());
-                    sendResponse(exchange, 500, "{\"error\":\"Fehler beim Verarbeiten des Bildes: " + e.getMessage() + "\"}");
+                    sendResponse(exchange, 500, "{\"error\":\"Fehler: " + e.getMessage() + "\"}");
                 }
             } else {
                 sendResponse(exchange, 405, "{\"error\":\"Nur POST erlaubt.\"}");
