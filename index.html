@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageCanvas - Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            background-color: #1e1e1e;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            max-width: 500px;
+            width: 100%;
+        }
+        h1 {
+            color: #4caf50;
+            margin-top: 0;
+            text-align: center;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background-color: #252525;
+            color: #fff;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: #4caf50;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            display: none;
+        }
+        .success {
+            background-color: #1b5e20;
+            color: #c8e6c9;
+            border: 1px solid #2e7d32;
+        }
+        .error {
+            background-color: #b71c1c;
+            color: #ffcdd2;
+            border: 1px solid #c62828;
+        }
+        .output-box {
+            background-color: #2d2d2d;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            word-break: break-all;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🖼️ ImageCanvas Uploader</h1>
+    <p style="text-align: center; color: #aaa;">Sende deine Bilder direkt an den Minecraft-Server</p>
+    
+    <hr style="border: 0; border-top: 1px solid #333; margin-bottom: 20px;">
+
+    <div class="form-group">
+        <label for="serverIp">Minecraft-Server IP / Domain (inkl. Port)</label>
+        <input type="text" id="serverIp" value="localhost:8080" placeholder="z.B. meine-server-ip.de:8080">
+    </div>
+
+    <div class="form-group">
+        <label for="imgUrl">Bild-URL (Direktlink)</label>
+        <input type="text" id="imgUrl" placeholder="https://example.com/bild.png">
+    </div>
+
+    <div class="form-group">
+        <label for="imgName">Eindeutiger Name für das Bild</label>
+        <input type="text" id="imgName" placeholder="z.B. spawnbild_gross">
+    </div>
+
+    <div class="form-group">
+        <label for="gridSize">Raster-Größe (Breite x Höhe in Karten)</label>
+        <select id="gridSize">
+            <option value="1x1">1x1 (1 Karte)</option>
+            <option value="2x2">2x2 (4 Karten)</option>
+            <option value="3x3" selected>3x3 (9 Karten)</option>
+            <option value="4x4">4x4 (16 Karten)</option>
+            <option value="5x5">5x5 (25 Karten)</option>
+            <option value="8x5">8x5 (40 Karten - Riesenleinwand)</option>
+        </select>
+    </div>
+
+    <button id="sendBtn" onclick="sendToMinecraft()">Bild an Server senden</button>
+
+    <div id="statusBox" class="status">
+        <div id="statusMessage"></div>
+        <div id="statusOutput" class="output-box" style="display: none;"></div>
+    </div>
+</div>
+
+<script>
+async function sendToMinecraft() {
+    const serverIp = document.getElementById('serverIp').value.trim();
+    const url = document.getElementById('imgUrl').value.trim();
+    const name = document.getElementById('imgName').value.trim();
+    const size = document.getElementById('gridSize').value;
+    
+    const statusBox = document.getElementById('statusBox');
+    const statusMessage = document.getElementById('statusMessage');
+    const statusOutput = document.getElementById('statusOutput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    if (!url || !name || !serverIp) {
+        showStatus('Bitte fülle alle Felder aus!', 'error');
+        return;
+    }
+
+    sendBtn.disabled = true;
+    sendBtn.innerText = 'Verarbeite und sende...';
+    
+    showStatus('Verbindung zum Minecraft-Server wird aufgebaut...', 'success');
+
+    // Wir bauen die Daten exakt so auf, wie der Java-Webserver sie erwartet (x-www-form-urlencoded)
+    const formData = new URLSearchParams();
+    formData.append('url', url);
+    formData.append('name', name);
+    formData.append('size', size);
+
+    try {
+        // Wir senden den POST-Request an den integrierten Webserver des Plugins
+        const response = await fetch(`http://${serverIp}/upload`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData.toString()
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+            statusMessage.innerHTML = `<strong>Erfolg!</strong> ${data.message}<br><br><strong>Generierte Map-IDs:</strong>`;
+            statusOutput.innerText = data.ids;
+            statusOutput.style.display = 'block';
+            statusBox.className = 'status success';
+        } else {
+            showStatus('Server-Fehler: ' + (data.error || 'Unbekannter Fehler'), 'error');
+        }
+
+    } catch (error) {
+        showStatus('Konnte keine Verbindung zum Minecraft-Server herstellen. Läuft das Plugin? Ist der Port ' + serverIp.split(':')[1] + ' im Router freigegeben?', 'error');
+        console.error(error);
+    } finally {
+        sendBtn.disabled = false;
+        sendBtn.innerText = 'Bild an Server senden';
+    }
+}
+
+function showStatus(text, type) {
+    const statusBox = document.getElementById('statusBox');
+    const statusMessage = document.getElementById('statusMessage');
+    const statusOutput = document.getElementById('statusOutput');
+    
+    statusMessage.innerText = text;
+    statusOutput.style.display = 'none';
+    statusBox.style.display = 'block';
+    statusBox.className = 'status ' + type;
+}
+</script>
+
+</body>
+</html>
