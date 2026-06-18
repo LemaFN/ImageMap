@@ -35,7 +35,7 @@
             margin-bottom: 8px;
             font-weight: bold;
         }
-        input[type="text"], select {
+        input[type="text"], input[type="number"], input[type="file"] {
             width: 100%;
             padding: 10px;
             border: 1px solid #333;
@@ -43,6 +43,17 @@
             background-color: #252525;
             color: #fff;
             box-sizing: border-box;
+        }
+        input[type="file"] {
+            padding: 8px;
+            cursor: pointer;
+        }
+        .grid-inputs {
+            display: flex;
+            gap: 10px;
+        }
+        .grid-inputs div {
+            flex: 1;
         }
         button {
             width: 100%;
@@ -89,7 +100,7 @@
 
 <div class="container">
     <h1>🖼️ ImageCanvas Uploader</h1>
-    <p style="text-align: center; color: #aaa;">Sende deine Bilder direkt an den Minecraft-Server</p>
+    <p style="text-align: center; color: #aaa;">Lade eigene Bilder direkt in deinen Minecraft-Server</p>
     
     <hr style="border: 0; border-top: 1px solid #333; margin-bottom: 20px;">
 
@@ -99,8 +110,8 @@
     </div>
 
     <div class="form-group">
-        <label for="imgUrl">Bild-URL (Direktlink)</label>
-        <input type="text" id="imgUrl" placeholder="https://example.com/bild.png">
+        <label for="imgFile">Bild auswählen (PNG, JPG)</label>
+        <input type="file" id="imgFile" accept="image/*">
     </div>
 
     <div class="form-group">
@@ -109,18 +120,20 @@
     </div>
 
     <div class="form-group">
-        <label for="gridSize">Raster-Größe (Breite x Höhe in Karten)</label>
-        <select id="gridSize">
-            <option value="1x1">1x1 (1 Karte)</option>
-            <option value="2x2">2x2 (4 Karten)</option>
-            <option value="3x3" selected>3x3 (9 Karten)</option>
-            <option value="4x4">4x4 (16 Karten)</option>
-            <option value="5x5">5x5 (25 Karten)</option>
-            <option value="8x5">8x5 (40 Karten - Riesenleinwand)</option>
-        </select>
+        <label>Eigene Leinwand-Größe (Anzahl der Karten)</label>
+        <div class="grid-inputs">
+            <div>
+                <label for="cols" style="font-size: 12px; color: #aaa;">Breite (Spalten)</label>
+                <input type="number" id="cols" value="3" min="1" max="20">
+            </div>
+            <div>
+                <label for="rows" style="font-size: 12px; color: #aaa;">Höhe (Zeilen)</label>
+                <input type="number" id="rows" value="3" min="1" max="20">
+            </div>
+        </div>
     </div>
 
-    <button id="sendBtn" onclick="sendToMinecraft()">Bild an Server senden</button>
+    <button id="sendBtn" onclick="processAndSend()">Bild an Server senden</button>
 
     <div id="statusBox" class="status">
         <div id="statusMessage"></div>
@@ -129,35 +142,51 @@
 </div>
 
 <script>
-async function sendToMinecraft() {
+function processAndSend() {
+    const fileInput = document.getElementById('imgFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        showStatus('Bitte wähle zuerst eine Bild-Datei von deinem PC aus!', 'error');
+        return;
+    }
+
+    // Wir lesen die Datei ein und konvertieren sie in Text (Base64)
+    const reader = new FileReader();
+    reader.onloadend = async function() {
+        const base64String = reader.result.split(',')[1]; // Holt den reinen Base64-Code ohne Header
+        await sendToMinecraft(base64String);
+    };
+    reader.readAsDataURL(file);
+}
+
+async function sendToMinecraft(base64Data) {
     const serverIp = document.getElementById('serverIp').value.trim();
-    const url = document.getElementById('imgUrl').value.trim();
     const name = document.getElementById('imgName').value.trim();
-    const size = document.getElementById('gridSize').value;
+    const cols = document.getElementById('cols').value;
+    const rows = document.getElementById('rows').value;
     
     const statusBox = document.getElementById('statusBox');
     const statusMessage = document.getElementById('statusMessage');
     const statusOutput = document.getElementById('statusOutput');
     const sendBtn = document.getElementById('sendBtn');
 
-    if (!url || !name || !serverIp) {
-        showStatus('Bitte fülle alle Felder aus!', 'error');
+    if (!name || !serverIp || !cols || !rows) {
+        showStatus('Bitte fülle alle Textfelder aus!', 'error');
         return;
     }
 
     sendBtn.disabled = true;
     sendBtn.innerText = 'Verarbeite und sende...';
-    
-    showStatus('Verbindung zum Minecraft-Server wird aufgebaut...', 'success');
+    showStatus('Bild wird komprimiert und an Minecraft übertragen...', 'success');
 
-    // Wir bauen die Daten exakt so auf, wie der Java-Webserver sie erwartet (x-www-form-urlencoded)
     const formData = new URLSearchParams();
-    formData.append('url', url);
+    formData.append('image_data', base64Data); // Wir senden die nackten Bilddaten!
     formData.append('name', name);
-    formData.append('size', size);
+    formData.append('cols', cols);
+    formData.append('rows', rows);
 
     try {
-        // Wir senden den POST-Request an den integrierten Webserver des Plugins
         const response = await fetch(`http://${serverIp}/upload`, {
             method: 'POST',
             headers: {
@@ -178,7 +207,7 @@ async function sendToMinecraft() {
         }
 
     } catch (error) {
-        showStatus('Konnte keine Verbindung zum Minecraft-Server herstellen. Läuft das Plugin? Ist der Port ' + serverIp.split(':')[1] + ' im Router freigegeben?', 'error');
+        showStatus('Konnte keine Verbindung zum Minecraft-Server herstellen. Läuft dein Plugin? Port ' + serverIp.split(':')[1] + ' offen?', 'error');
         console.error(error);
     } finally {
         sendBtn.disabled = false;
