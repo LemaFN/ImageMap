@@ -1,0 +1,18 @@
+name: ImageCanvas
+version: 1.0.0
+main: com.imagecanvas.Main
+api-version: 1.20
+author: Lema
+description: Ein Plugin, um Bilder aus dem Internet als Riesen-Karten an Wänden zu platzieren.
+
+commands:
+  imagecanvas:
+    description: Hauptbefehl für das ImageCanvas-Plugin
+    aliases: [canvas, ic]
+    permission: imagecanvas.use
+    usage: /imagecanvas [upload/delete/reload]
+
+permissions:
+  imagecanvas.use:
+    description: Erlaubt es Spielern, das ImageCanvas-Plugin zu verwenden
+    default: op
