@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ImageCanvas - Dashboard</title>
+    <title>ImageCanvas - Web Uploader</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -44,10 +44,6 @@
             color: #fff;
             box-sizing: border-box;
         }
-        input[type="file"] {
-            padding: 8px;
-            cursor: pointer;
-        }
         .grid-inputs {
             display: flex;
             gap: 10px;
@@ -86,13 +82,20 @@
             color: #ffcdd2;
             border: 1px solid #c62828;
         }
-        .output-box {
+        .copy-box {
             background-color: #2d2d2d;
-            padding: 10px;
+            padding: 12px;
             border-radius: 4px;
             font-family: monospace;
             word-break: break-all;
             margin-top: 10px;
+            border: 1px dashed #4caf50;
+            cursor: pointer;
+            color: #a3e2a5;
+            text-align: center;
+        }
+        .copy-box:hover {
+            background-color: #383838;
         }
     </style>
 </head>
@@ -100,128 +103,124 @@
 
 <div class="container">
     <h1>🖼️ ImageCanvas Uploader</h1>
-    <p style="text-align: center; color: #aaa;">Lade eigene Bilder direkt in deinen Minecraft-Server</p>
+    <p style="text-align: center; color: #aaa;">Lade dein Bild hoch und generiere den In-Game Befehl</p>
     
     <hr style="border: 0; border-top: 1px solid #333; margin-bottom: 20px;">
 
     <div class="form-group">
-        <label for="serverIp">Minecraft-Server IP / Domain (inkl. Port)</label>
-        <input type="text" id="serverIp" value="localhost:8080" placeholder="z.B. meine-server-ip.de:8080">
-    </div>
-
-    <div class="form-group">
-        <label for="imgFile">Bild auswählen (PNG, JPG)</label>
+        <label for="imgFile">Bild vom PC/Handy auswählen</label>
         <input type="file" id="imgFile" accept="image/*">
     </div>
 
     <div class="form-group">
         <label for="imgName">Eindeutiger Name für das Bild</label>
-        <input type="text" id="imgName" placeholder="z.B. spawnbild_gross">
+        <input type="text" id="imgName" placeholder="z.B. mein_bild_1">
     </div>
 
     <div class="form-group">
-        <label>Eigene Leinwand-Größe (Anzahl der Karten)</label>
+        <label>Größe der Leinwand (Anzahl an Minecraft-Karten)</label>
         <div class="grid-inputs">
             <div>
                 <label for="cols" style="font-size: 12px; color: #aaa;">Breite (Spalten)</label>
-                <input type="number" id="cols" value="3" min="1" max="20">
+                <input type="number" id="cols" value="3" min="1" max="30">
             </div>
             <div>
                 <label for="rows" style="font-size: 12px; color: #aaa;">Höhe (Zeilen)</label>
-                <input type="number" id="rows" value="3" min="1" max="20">
+                <input type="number" id="rows" value="3" min="1" max="30">
             </div>
         </div>
     </div>
 
-    <button id="sendBtn" onclick="processAndSend()">Bild an Server senden</button>
+    <button id="uploadBtn" onclick="uploadAndGenerate()">Befehl generieren</button>
 
     <div id="statusBox" class="status">
         <div id="statusMessage"></div>
-        <div id="statusOutput" class="output-box" style="display: none;"></div>
+        <div id="commandOutput" class="copy-box" style="display: none;" onclick="copyToClipboard()"></div>
     </div>
 </div>
 
 <script>
-function processAndSend() {
+let generatedCommand = "";
+
+async function uploadAndGenerate() {
     const fileInput = document.getElementById('imgFile');
-    const file = fileInput.files[0];
-
-    if (!file) {
-        showStatus('Bitte wähle zuerst eine Bild-Datei von deinem PC aus!', 'error');
-        return;
-    }
-
-    // Wir lesen die Datei ein und konvertieren sie in Text (Base64)
-    const reader = new FileReader();
-    reader.onloadend = async function() {
-        const base64String = reader.result.split(',')[1]; // Holt den reinen Base64-Code ohne Header
-        await sendToMinecraft(base64String);
-    };
-    reader.readAsDataURL(file);
-}
-
-async function sendToMinecraft(base64Data) {
-    const serverIp = document.getElementById('serverIp').value.trim();
-    const name = document.getElementById('imgName').value.trim();
+    const nameInput = document.getElementById('imgName');
     const cols = document.getElementById('cols').value;
     const rows = document.getElementById('rows').value;
     
     const statusBox = document.getElementById('statusBox');
     const statusMessage = document.getElementById('statusMessage');
-    const statusOutput = document.getElementById('statusOutput');
-    const sendBtn = document.getElementById('sendBtn');
+    const commandOutput = document.getElementById('commandOutput');
+    const uploadBtn = document.getElementById('uploadBtn');
 
-    if (!name || !serverIp || !cols || !rows) {
-        showStatus('Bitte fülle alle Textfelder aus!', 'error');
+    const file = fileInput.files[0];
+    const name = nameInput.value.trim().replace(/[^a-zA-Z0-9_]/g, ""); // Säubert den Namen von Sonderzeichen
+
+    if (!file || !name || !cols || !rows) {
+        showStatus('Bitte fülle alle Felder aus und wähle ein Bild!', 'error');
         return;
     }
 
-    sendBtn.disabled = true;
-    sendBtn.innerText = 'Verarbeite und sende...';
-    showStatus('Bild wird komprimiert und an Minecraft übertragen...', 'success');
+    uploadBtn.disabled = true;
+    uploadBtn.innerText = 'Wird hochgeladen...';
+    showStatus('Bild wird verarbeitet und sicher im Web gespeichert...', 'success');
 
-    const formData = new URLSearchParams();
-    formData.append('image_data', base64Data); // Wir senden die nackten Bilddaten!
-    formData.append('name', name);
-    formData.append('cols', cols);
-    formData.append('rows', rows);
+    // Wir nutzen den kostenlosen, anonymen Hoster freeimage.host über ein CORS-Proxy, um dein Bild hochzuladen
+    const reader = new FileReader();
+    reader.onloadend = async function() {
+        const base64String = reader.result.split(',')[1];
+        
+        const formData = new FormData();
+        formData.append('key', '6d207e02198a847aa98d4a2a1154857a'); // Öffentlicher API-Key für freeimage.host
+        formData.append('action', 'upload');
+        formData.append('source', base64String);
+        formData.append('format', 'json');
 
-    try {
-        const response = await fetch(`http://${serverIp}/upload`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: formData.toString()
-        });
+        try {
+            const response = await fetch('https://api.freeimage.host/1/upload', {
+                method: 'POST',
+                body: formData
+            });
 
-        const data = await response.json();
+            const data = await response.json();
 
-        if (response.ok && data.status === 'success') {
-            statusMessage.innerHTML = `<strong>Erfolg!</strong> ${data.message}<br><br><strong>Generierte Map-IDs:</strong>`;
-            statusOutput.innerText = data.ids;
-            statusOutput.style.display = 'block';
-            statusBox.className = 'status success';
-        } else {
-            showStatus('Server-Fehler: ' + (data.error || 'Unbekannter Fehler'), 'error');
+            if (response.ok && data.image && data.image.url) {
+                const directImageUrl = data.image.url;
+                
+                // Hier bauen wir den exakten Minecraft-Befehl zusammen!
+                generatedCommand = `/imagecanvas create ${name} ${directImageUrl} ${cols}x${rows}`;
+                
+                statusMessage.innerHTML = `<strong>Upload abgeschlossen!</strong><br>Klicke auf das grüne Feld unten, um den Befehl zu kopieren. Füge ihn danach einfach im Minecraft-Chat ein!`;
+                commandOutput.innerText = generatedCommand;
+                commandOutput.style.display = 'block';
+                statusBox.className = 'status success';
+            } else {
+                showStatus('Fehler beim Bilder-Upload: ' + (data.error ? data.error.message : 'Unbekannter Hoster-Fehler'), 'error');
+            }
+        } catch (error) {
+            showStatus('Netzwerkfehler beim Hochladen des Bildes. Bitte versuche es noch einmal.', 'error');
+            console.error(error);
+        } finally {
+            uploadBtn.disabled = false;
+            uploadBtn.innerText = 'Befehl generieren';
         }
+    };
+    reader.readAsDataURL(file);
+}
 
-    } catch (error) {
-        showStatus('Konnte keine Verbindung zum Minecraft-Server herstellen. Läuft dein Plugin? Port ' + serverIp.split(':')[1] + ' offen?', 'error');
-        console.error(error);
-    } finally {
-        sendBtn.disabled = false;
-        sendBtn.innerText = 'Bild an Server senden';
-    }
+function copyToClipboard() {
+    if (!generatedCommand) return;
+    navigator.clipboard.writeText(generatedCommand);
+    alert('Befehl wurde in die Zwischenablage kopiert! Füge ihn mit STRG+V in Minecraft ein.');
 }
 
 function showStatus(text, type) {
     const statusBox = document.getElementById('statusBox');
     const statusMessage = document.getElementById('statusMessage');
-    const statusOutput = document.getElementById('statusOutput');
+    const commandOutput = document.getElementById('commandOutput');
     
     statusMessage.innerText = text;
-    statusOutput.style.display = 'none';
+    commandOutput.style.display = 'none';
     statusBox.style.display = 'block';
     statusBox.className = 'status ' + type;
 }
