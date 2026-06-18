@@ -1,21 +1,46 @@
-name: Deploy GitHub Pages
+name: Build Plugin and Deploy Pages
 
 on:
   push:
     branches:
-      - main # Falls dein Haupt-Branch "master" heißt, ändere das hier in master
+      - main
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 concurrency:
-  group: "pages"
+  group: "pages-and-build"
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # JOB 1: Kompiliert dein Minecraft-Java-Plugin zu einer .jar Datei
+  build-jar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build with Maven
+        run: mvn clean package
+
+      - name: Upload Finished Jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: ImageCanvas-Plugin
+          path: target/*.jar
+
+  # JOB 2: Lädt deine Webseite auf GitHub Pages hoch
+  deploy-pages:
+    needs: build-jar # Wartet, bis der Java-Build fertig ist
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -30,7 +55,7 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.' # Lädt das Hauptverzeichnis inklusive index.html hoch
+          path: '.'
 
       - name: Deploy to GitHub Pages
         id: deployment
