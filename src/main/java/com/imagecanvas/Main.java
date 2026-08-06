@@ -25,6 +25,7 @@ public class Main extends JavaPlugin implements CommandExecutor, TabCompleter {
         // Speicher und Manager initialisieren
         this.storage = new ImageMapStorage(this);
         this.imageManager = new ImageManager(this);
+        this.storage.loadMaps();
 
         // Befehl und Tab-Vervollständigung registrieren
         if (this.getCommand("imagecanvas") != null) {
