@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ImageCanvas Upload</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+<style>
+  :root {
+    --bg: #18181a;
+    --panel: #2b2b2e;
+    --panel-dark: #202022;
+    --hi: #4a4a50;
+    --lo: #141415;
+    --text: #ececec;
+    --muted: #a0a0a8;
+    --green: #62d962;
+    --green-dark: #2f7d2f;
+    --yellow: #f6e05e;
+    --red: #ff6b6b;
+    --font: 'VT323', ui-monospace, 'Courier New', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--font);
+    font-size: 20px;
+    line-height: 1.3;
+    color: var(--text);
+    background: var(--bg);
+    background-image:
+      linear-gradient(rgba(0,0,0,.35) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,.35) 1px, transparent 1px);
+    background-size: 32px 32px;
+    min-height: 100vh;
+    padding: 24px 16px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .wrap { width: 100%; max-width: 520px; }
+  h1 {
+    font-size: 54px;
+    font-weight: normal;
+    letter-spacing: 3px;
+    text-align: center;
+    color: var(--green);
+    text-shadow: 4px 4px 0 #0c2a0c;
+    line-height: 1;
+  }
+  .sub { text-align: center; color: var(--muted); margin: 6px 0 20px; }
+  .panel {
+    background: var(--panel);
+    border: 4px solid #000;
+    box-shadow: inset 3px 3px 0 var(--hi), inset -3px -3px 0 var(--lo), 6px 6px 0 rgba(0,0,0,.45);
+    padding: 18px;
+    margin-bottom: 16px;
+  }
+  .panel.dark { background: var(--panel-dark); }
+  [hidden] { display: none !important; }
+
+  .drop {
+    border: 4px dashed #5a5a62;
+    background: #252527;
+    text-align: center;
+    padding: 30px 14px;
+    cursor: pointer;
+  }
+  .drop:hover, .drop.over, .drop:focus-visible { border-color: var(--green); background: #26332a; outline: none; }
+  .drop .big { font-size: 28px; margin-bottom: 6px; }
+  .drop small { color: var(--muted); font-size: 18px; }
+  .preview { margin-top: 14px; text-align: center; }
+  .preview img {
+    max-width: 100%; max-height: 190px;
+    border: 4px solid #000;
+    box-shadow: 4px 4px 0 rgba(0,0,0,.5);
+    image-rendering: auto;
+  }
+  .preview .info { color: var(--muted); margin-top: 6px; }
+
+  label.lbl { display: block; color: var(--muted); text-transform: uppercase; font-size: 17px; margin-bottom: 4px; }
+  .field { margin-bottom: 14px; }
+  input[type=text], input[type=number] {
+    width: 100%;
+    font: inherit;
+    color: var(--text);
+    background: #000;
+    border: 3px solid #4a4a50;
+    padding: 7px 10px;
+  }
+  input:focus-visible { outline: none; border-color: var(--green); }
+  input.bad { border-color: var(--red); }
+  .row { display: flex; gap: 10px; align-items: flex-end; }
+  .row > div { flex: 1; }
+  .times { padding-bottom: 9px; color: var(--muted); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+  .chips span.t { color: var(--muted); }
+  .chip {
+    font: inherit; color: var(--text); background: #3a3a40;
+    border: 3px solid #000; padding: 1px 10px; cursor: pointer;
+  }
+  .chip:hover, .chip.on { background: var(--green-dark); }
+  .err { color: var(--red); margin-top: 4px; }
+  .check {
+    display: flex; gap: 10px; align-items: center;
+    background: #26262a; border: 3px solid #000; padding: 8px 10px; margin-bottom: 8px; cursor: pointer;
+  }
+  .check.off { opacity: .45; cursor: not-allowed; }
+  .check input { width: 22px; height: 22px; accent-color: var(--green); flex: none; }
+  .check small { color: var(--muted); display: block; font-size: 17px; }
+
+  .bar { height: 20px; background: #000; border: 3px solid #4a4a50; margin-top: 8px; }
+  .bar > i { display: block; height: 100%; width: 0; background: var(--green); transition: width .15s; }
+  .status { color: var(--yellow); text-align: center; }
+  .status.bad { color: var(--red); }
+
+  .cmd {
+    background: #000; border: 3px solid #4a4a50; color: var(--yellow);
+    padding: 12px; word-break: break-all; margin: 8px 0 12px; user-select: all;
+  }
+  .btns { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    font: inherit; font-size: 24px; color: #fff; cursor: pointer;
+    background: var(--green-dark); border: 4px solid #000;
+    box-shadow: inset 3px 3px 0 #4fb34f, inset -3px -3px 0 #1c4d1c;
+    padding: 6px 18px; text-shadow: 2px 2px 0 #123012;
+  }
+  .btn.grey { background: #55555c; box-shadow: inset 3px 3px 0 #77777f, inset -3px -3px 0 #333338; text-shadow: 2px 2px 0 #222; }
+  .btn:hover { filter: brightness(1.15); }
+  .btn:active { filter: brightness(.9); }
+  .btn:disabled { filter: grayscale(1) brightness(.7); cursor: not-allowed; }
+  .hint { color: var(--muted); font-size: 18px; margin-top: 10px; }
+
+  .locked { text-align: center; padding: 18px 6px; }
+  .locked h2 { color: var(--red); font-weight: normal; font-size: 34px; margin-bottom: 10px; }
+  .locked code { display: inline-block; background: #000; border: 3px solid #4a4a50; color: var(--yellow); padding: 8px 14px; margin-top: 10px; }
+  footer { text-align: center; color: #6a6a72; font-size: 17px; margin-top: 4px; }
+  @media (max-width: 420px) { h1 { font-size: 40px; } body { font-size: 19px; } }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>ImageCanvas</h1>
+  <p class="sub">Bild hochladen, Befehl kopieren, im Spiel einfuegen</p>
+
+  <!-- Ohne ?key=... (also nicht ueber /imagemap upload geoeffnet) -->
+  <section class="panel locked" id="locked" hidden>
+    <h2>Zugriff nur ueber das Spiel</h2>
+    <p>Fuehre diesen Befehl auf dem Server aus und klicke den Link:</p>
+    <code>/imagemap upload</code>
+  </section>
+
+  <div id="app" hidden>
+    <section class="panel">
+      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Bild auswaehlen">
+        <div class="big">Bild hierher ziehen</div>
+        <small>oder klicken zum Auswaehlen (PNG, JPG, GIF, BMP)</small>
+        <input type="file" id="file" accept="image/png,image/jpeg,image/gif,image/bmp,image/webp" hidden>
+      </div>
+      <div class="preview" id="preview" hidden>
+        <img id="previewImg" alt="Vorschau">
+        <div class="info" id="previewInfo"></div>
+      </div>
+      <div id="progressBox" hidden>
+        <div class="bar"><i id="bar"></i></div>
+      </div>
+      <p class="status" id="status" hidden></p>
+    </section>
+
+    <section class="panel dark" id="options" hidden>
+      <div class="field">
+        <label class="lbl" for="name">Name</label>
+        <input type="text" id="name" maxlength="32" autocomplete="off" spellcheck="false" placeholder="meinbild">
+        <div class="err" id="nameErr" hidden></div>
+      </div>
+
+      <div class="field">
+        <label class="lbl">Groesse in Karten</label>
+        <div class="row">
+          <div><input type="number" id="cols" min="1" max="16" value="3" aria-label="Breite in Karten"></div>
+          <span class="times">x</span>
+          <div><input type="number" id="rows" min="1" max="16" value="3" aria-label="Hoehe in Karten"></div>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="err" id="sizeErr" hidden></div>
+      </div>
+
+      <label class="check" id="autoBox">
+        <input type="checkbox" id="auto" checked>
+        <span>Auto-Place<small>Fuellt die Item-Frames automatisch (oben links anschauen)</small></span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="hd">
+        <span>HD-Modus<small>Bessere Skalierung</small></span>
+      </label>
+    </section>
+
+    <section class="panel" id="result" hidden>
+      <div style="color:var(--green);font-size:28px">Fertig! Kopiere diesen Befehl:</div>
+      <div class="cmd" id="cmd"></div>
+      <div class="btns">
+        <button class="btn" id="copy" type="button">Befehl kopieren</button>
+        <button class="btn grey" id="again" type="button">Noch ein Bild</button>
+      </div>
+      <p class="hint">Im Spiel mit T den Chat oeffnen, mit Strg+V einfuegen und Enter druecken.
+        Fuer <b>Auto-Place</b> vorher auf den Item-Frame oben links im Raster schauen.</p>
+    </section>
+  </div>
+
+  <footer>ImageCanvas Plugin</footer>
+</main>
+
+<script>
+'use strict';
+
+// ---- Einstellungen ---------------------------------------------------------
+const CONFIG = {
+  // Bild-Host (Chevereto-API von freeimage.host). Zweiter Eintrag ist ein Fallback.
+  endpoints: ['https://freeimage.host/api/1/upload', 'https://api.freeimage.host/1/upload'],
+  apiKey: '6d207e02198a847aa98d4a2a1154857a', // oeffentlicher Demo-Key von freeimage.host
+  maxSide: 2048,        // 16 Karten * 128 Pixel
+  maxFileBytes: 40 * 1024 * 1024,
+  maxPerSide: 16,
+  maxTiles: 100,
+  command: '/imagemap create'
+};
+
+const $ = (id) => document.getElementById(id);
+const els = {
+  locked: $('locked'), app: $('app'), drop: $('drop'), file: $('file'),
+  preview: $('preview'), previewImg: $('previewImg'), previewInfo: $('previewInfo'),
+  progressBox: $('progressBox'), bar: $('bar'), status: $('status'),
+  options: $('options'), name: $('name'), nameErr: $('nameErr'),
+  cols: $('cols'), rows: $('rows'), chips: $('chips'), sizeErr: $('sizeErr'),
+  auto: $('auto'), autoBox: $('autoBox'), hd: $('hd'),
+  result: $('result'), cmd: $('cmd'), copy: $('copy'), again: $('again')
+};
+
+let uploadedUrl = null;
+let aspect = 1;
+let busy = false;
+let previewObjectUrl = null;
+
+// ---- Zugriff nur mit ?key=... ----------------------------------------------
+(function gate() {
+  const key = new URLSearchParams(location.search).get('key');
+  const ok = !!key && /^[a-z0-9]{8,64}$/i.test(key);
+  els.locked.hidden = ok;
+  els.app.hidden = !ok;
+})();
+
+// ---- Namen merken (nur auf diesem Geraet) ----------------------------------
+function usedNames() {
+  try { return JSON.parse(localStorage.getItem('imagecanvas_names') || '[]'); } catch { return []; }
+}
+function rememberName(n) {
+  try {
+    const list = usedNames();
+    if (!list.includes(n)) { list.push(n); localStorage.setItem('imagecanvas_names', JSON.stringify(list)); }
+  } catch { /* Speicher gesperrt: egal */ }
+}
+function cleanName(raw) {
+  return raw.toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 32);
+}
+function freeName(base) {
+  base = cleanName(base) || 'bild';
+  const used = usedNames();
+  let n = base, i = 1;
+  while (used.includes(n)) { n = base.slice(0, 29) + (++i); }
+  return n;
+}
+
+// ---- Groesse ----------------------------------------------------------------
+function sizeValues() {
+  return { c: parseInt(els.cols.value, 10), r: parseInt(els.rows.value, 10) };
+}
+function sizeProblem() {
+  const { c, r } = sizeValues();
+  if (!Number.isInteger(c) || !Number.isInteger(r) || c < 1 || r < 1) return 'Bitte Breite und Hoehe angeben.';
+  if (c > CONFIG.maxPerSide || r > CONFIG.maxPerSide) return 'Maximal ' + CONFIG.maxPerSide + ' Karten pro Seite.';
+  if (c * r > CONFIG.maxTiles) return 'Maximal ' + CONFIG.maxTiles + ' Karten insgesamt.';
+  return '';
+}
+function suggestSizes(ratio) {
+  const out = [];
+  for (let c = 1; c <= CONFIG.maxPerSide; c++) {
+    for (let r = 1; r <= CONFIG.maxPerSide; r++) {
+      const area = c * r;
+      if (area > 64) continue;
+      const err = Math.abs(Math.log((c / r) / ratio));
+      if (err <= 0.05) out.push({ c, r, area, err });
+    }
+  }
+  out.sort((a, b) => a.area - b.area || a.err - b.err);
+  return out.slice(0, 6);
+}
+function renderChips() {
+  const list = suggestSizes(aspect);
+  els.chips.textContent = '';
+  if (!list.length) return;
+  const t = document.createElement('span');
+  t.className = 't';
+  t.textContent = 'Passend zum Bild:';
+  els.chips.appendChild(t);
+  const cur = sizeValues();
+  for (const s of list) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip' + (s.c === cur.c && s.r === cur.r ? ' on' : '');
+    b.textContent = s.c + 'x' + s.r;
+    b.addEventListener('click', () => { els.cols.value = s.c; els.rows.value = s.r; refresh(); });
+    els.chips.appendChild(b);
+  }
+}
+function defaultSize(ratio) {
+  const list = suggestSizes(ratio);
+  if (!list.length) return { c: 3, r: 3 };
+  let best = list[0];
+  for (const s of list) if (Math.abs(s.area - 12) < Math.abs(best.area - 12)) best = s;
+  return { c: best.c, r: best.r };
+}
+
+// ---- Befehl -----------------------------------------------------------------
+function refresh() {
+  const { c, r } = sizeValues();
+  const problem = sizeProblem();
+  els.sizeErr.hidden = !problem;
+  els.sizeErr.textContent = problem;
+  els.cols.classList.toggle('bad', !!problem);
+  els.rows.classList.toggle('bad', !!problem);
+
+  const single = c === 1 && r === 1;
+  els.auto.disabled = single;
+  els.autoBox.classList.toggle('off', single);
+
+  const name = cleanName(els.name.value);
+  const nameTaken = name && usedNames().includes(name);
+  els.nameErr.hidden = !(nameTaken || !name);
+  els.nameErr.textContent = !name ? 'Bitte einen Namen eingeben (a-z, 0-9, _ und -).'
+    : 'Diesen Namen hast du hier schon benutzt - er muss auf dem Server einmalig sein.';
+  els.name.classList.toggle('bad', !name);
+
+  renderChips();
+
+  if (!uploadedUrl || problem || !name) {
+    els.result.hidden = true;
+    return;
+  }
+  const parts = [CONFIG.command, name, uploadedUrl, c + 'x' + r];
+  if (els.auto.checked && !single) parts.push('-auto');
+  if (els.hd.checked) parts.push('-HD');
+  els.cmd.textContent = parts.join(' ');
+  els.result.hidden = false;
+}
+
+// ---- Datei verarbeiten -------------------------------------------------------
+function setStatus(text, bad) {
+  els.status.hidden = !text;
+  els.status.textContent = text || '';
+  els.status.classList.toggle('bad', !!bad);
+}
+
+function loadImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => resolve({ img, url });
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Das Bild konnte nicht gelesen werden.')); };
+    img.src = url;
+  });
+}
+
+async function shrinkIfNeeded(img, file) {
+  const w = img.naturalWidth, h = img.naturalHeight;
+  if (Math.max(w, h) <= CONFIG.maxSide && /^image\/(png|jpeg|gif|bmp)$/.test(file.type)) {
+    return { blob: file, filename: file.name || 'image' };
+  }
+  const f = Math.min(1, CONFIG.maxSide / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w * f));
+  canvas.height = Math.max(1, Math.round(h * f));
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+  if (!blob) throw new Error('Das Bild konnte nicht verkleinert werden.');
+  return { blob, filename: 'image.png' };
+}
+
+function sendTo(index, blob, filename) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', CONFIG.endpoints[index], true);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const p = Math.round((e.loaded / e.total) * 100);
+        els.bar.style.width = p + '%';
+        setStatus('Lade hoch ... ' + p + '%');
+      }
+    };
+    xhr.onerror = () => reject({ network: true });
+    xhr.onload = () => {
+      let data = null;
+      try { data = JSON.parse(xhr.responseText); } catch { /* keine JSON-Antwort */ }
+      const url = data && data.image && (data.image.url || (data.image.image && data.image.image.url));
+      if (xhr.status >= 200 && xhr.status < 300 && url) { resolve(url); return; }
+      const msg = data && data.error && data.error.message ? data.error.message : 'Fehler vom Bild-Host (HTTP ' + xhr.status + ')';
+      reject({ network: false, message: msg });
+    };
+    const form = new FormData();
+    form.append('key', CONFIG.apiKey);
+    form.append('action', 'upload');
+    form.append('format', 'json');
+    form.append('source', blob, filename);
+    xhr.send(form);
+  });
+}
+
+async function upload(blob, filename) {
+  let lastError = null;
+  for (let i = 0; i < CONFIG.endpoints.length; i++) {
+    try { return await sendTo(i, blob, filename); }
+    catch (e) {
+      lastError = e;
+      if (!e.network) break; // echte Fehlermeldung des Hosts: nicht erneut versuchen
+    }
+  }
+  throw new Error(lastError && lastError.message ? lastError.message
+    : 'Der Bild-Host ist nicht erreichbar. Bitte spaeter noch einmal versuchen.');
+}
+
+async function handleFile(file) {
+  if (busy || !file) return;
+  if (!/^image\//.test(file.type)) { setStatus('Das ist keine Bilddatei.', true); return; }
+  if (file.size > CONFIG.maxFileBytes) { setStatus('Die Datei ist groesser als 40 MB.', true); return; }
+
+  busy = true;
+  uploadedUrl = null;
+  els.result.hidden = true;
+  els.options.hidden = true;
+  els.progressBox.hidden = false;
+  els.bar.style.width = '0%';
+  setStatus('Bild wird vorbereitet ...');
+
+  try {
+    const { img, url } = await loadImage(file);
+    if (previewObjectUrl) URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl = url;
+    els.previewImg.src = url;
+    els.previewInfo.textContent = (file.name || 'Bild') + ' (' + img.naturalWidth + 'x' + img.naturalHeight + ')';
+    els.preview.hidden = false;
+
+    aspect = img.naturalWidth / img.naturalHeight;
+    const d = defaultSize(aspect);
+    els.cols.value = d.c;
+    els.rows.value = d.r;
+    els.name.value = freeName((file.name || 'bild').replace(/\.[^.]+$/, ''));
+    els.options.hidden = false;
+
+    const prepared = await shrinkIfNeeded(img, file);
+    uploadedUrl = await upload(prepared.blob, prepared.filename);
+    els.progressBox.hidden = true;
+    setStatus('');
+    refresh();
+  } catch (e) {
+    els.progressBox.hidden = true;
+    setStatus(e && e.message ? e.message : 'Unbekannter Fehler beim Hochladen.', true);
+  } finally {
+    busy = false;
+  }
+}
+
+// ---- Ereignisse ---------------------------------------------------------------
+els.drop.addEventListener('click', () => els.file.click());
+els.drop.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); els.file.click(); } });
+els.file.addEventListener('change', () => { if (els.file.files[0]) handleFile(els.file.files[0]); });
+['dragenter', 'dragover'].forEach((t) => els.drop.addEventListener(t, (e) => { e.preventDefault(); els.drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((t) => els.drop.addEventListener(t, (e) => { e.preventDefault(); els.drop.classList.remove('over'); }));
+els.drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+
+els.name.addEventListener('input', () => { els.name.value = cleanName(els.name.value); refresh(); });
+for (const el of [els.cols, els.rows, els.auto, els.hd]) el.addEventListener('input', refresh);
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { /* Fallback */ }
+  const ta = document.createElement('textarea');
+  ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+  document.body.appendChild(ta); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  ta.remove();
+  return ok;
+}
+els.copy.addEventListener('click', async () => {
+  const ok = await copyText(els.cmd.textContent);
+  if (ok) rememberName(cleanName(els.name.value));
+  els.copy.textContent = ok ? 'Kopiert!' : 'Zum Kopieren markieren';
+  if (!ok) { const r = document.createRange(); r.selectNodeContents(els.cmd); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+  setTimeout(() => { els.copy.textContent = 'Befehl kopieren'; }, 2000);
+});
+els.again.addEventListener('click', () => {
+  uploadedUrl = null;
+  els.file.value = '';
+  els.preview.hidden = true;
+  els.options.hidden = true;
+  els.result.hidden = true;
+  setStatus('');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+</script>
+</body>
+</html>
